@@ -1,0 +1,181 @@
+-- Valid chunk sizing function for testing
+CREATE OR REPLACE FUNCTION calculate_chunk_interval(
+        dimension_id INTEGER,
+        chunk_target_size BIGINT
+)
+    RETURNS BIGINT LANGUAGE PLPGSQL AS
+$BODY$
+DECLARE
+BEGIN
+    RETURN -1;
+END
+$BODY$;
+-- Chunk sizing function with bad signature
+CREATE OR REPLACE FUNCTION bad_calculate_chunk_interval(
+        dimension_id INTEGER
+)
+    RETURNS BIGINT LANGUAGE PLPGSQL AS
+$BODY$
+DECLARE
+BEGIN
+    RETURN -1;
+END
+$BODY$;
+CREATE TABLE test_adaptive(time timestamptz, temp float);
+\set ON_ERROR_STOP 0
+-- Bad signature of sizing func should fail
+SELECT create_hypertable('test_adaptive', 'time',
+                         chunk_target_size => '1MB',
+                         chunk_sizing_func => 'bad_calculate_chunk_interval');
+NOTICE:  Adding NOT NULL constraint to time column time (NULL time values not allowed)
+ERROR:  Invalid number of function arguments
+\set ON_ERROR_STOP 1
+-- Setting sizing func with correct signature should work
+SELECT create_hypertable('test_adaptive', 'time',
+                         chunk_target_size => '1MB',
+                         chunk_sizing_func => 'calculate_chunk_interval');
+NOTICE:  Adding NOT NULL constraint to time column time (NULL time values not allowed)
+ create_hypertable 
+-------------------
+ 
+(1 row)
+
+DROP TABLE test_adaptive;
+CREATE TABLE test_adaptive(time timestamptz, temp float);
+-- Size but no explicit func should use default func
+SELECT create_hypertable('test_adaptive', 'time',
+                         chunk_target_size => '1MB');
+NOTICE:  Adding NOT NULL constraint to time column time (NULL time values not allowed)
+ create_hypertable 
+-------------------
+ 
+(1 row)
+
+SELECT table_name, chunk_sizing_func_schema, chunk_sizing_func_name, chunk_target_size
+FROM _timescaledb_catalog.hypertable;
+  table_name   | chunk_sizing_func_schema |  chunk_sizing_func_name  | chunk_target_size 
+---------------+--------------------------+--------------------------+-------------------
+ test_adaptive | _timescaledb_internal    | calculate_chunk_interval |           1048576
+(1 row)
+
+-- Change the target size
+SELECT * FROM set_adaptive_chunk_sizing('test_adaptive', '2MB');
+               chunk_sizing_func                | chunk_target_size 
+------------------------------------------------+-------------------
+ _timescaledb_internal.calculate_chunk_interval |           2097152
+(1 row)
+
+SELECT table_name, chunk_sizing_func_schema, chunk_sizing_func_name, chunk_target_size
+FROM _timescaledb_catalog.hypertable;
+  table_name   | chunk_sizing_func_schema |  chunk_sizing_func_name  | chunk_target_size 
+---------------+--------------------------+--------------------------+-------------------
+ test_adaptive | _timescaledb_internal    | calculate_chunk_interval |           2097152
+(1 row)
+
+-- Setting NULL func should use existing function
+SELECT * FROM set_adaptive_chunk_sizing('test_adaptive', '1MB', NULL);
+               chunk_sizing_func                | chunk_target_size 
+------------------------------------------------+-------------------
+ _timescaledb_internal.calculate_chunk_interval |           1048576
+(1 row)
+
+SELECT table_name, chunk_sizing_func_schema, chunk_sizing_func_name, chunk_target_size
+FROM _timescaledb_catalog.hypertable;
+  table_name   | chunk_sizing_func_schema |  chunk_sizing_func_name  | chunk_target_size 
+---------------+--------------------------+--------------------------+-------------------
+ test_adaptive | _timescaledb_internal    | calculate_chunk_interval |           1048576
+(1 row)
+
+-- Setting NULL size disables adaptive chunking
+SELECT * FROM set_adaptive_chunk_sizing('test_adaptive', NULL);
+               chunk_sizing_func                | chunk_target_size 
+------------------------------------------------+-------------------
+ _timescaledb_internal.calculate_chunk_interval |                 0
+(1 row)
+
+SELECT table_name, chunk_sizing_func_schema, chunk_sizing_func_name, chunk_target_size
+FROM _timescaledb_catalog.hypertable;
+  table_name   | chunk_sizing_func_schema |  chunk_sizing_func_name  | chunk_target_size 
+---------------+--------------------------+--------------------------+-------------------
+ test_adaptive | _timescaledb_internal    | calculate_chunk_interval |                 0
+(1 row)
+
+SELECT * FROM set_adaptive_chunk_sizing('test_adaptive', '1MB');
+               chunk_sizing_func                | chunk_target_size 
+------------------------------------------------+-------------------
+ _timescaledb_internal.calculate_chunk_interval |           1048576
+(1 row)
+
+-- Setting size to 'off' should also disable
+SELECT * FROM set_adaptive_chunk_sizing('test_adaptive', 'off');
+               chunk_sizing_func                | chunk_target_size 
+------------------------------------------------+-------------------
+ _timescaledb_internal.calculate_chunk_interval |                 0
+(1 row)
+
+SELECT table_name, chunk_sizing_func_schema, chunk_sizing_func_name, chunk_target_size
+FROM _timescaledb_catalog.hypertable;
+  table_name   | chunk_sizing_func_schema |  chunk_sizing_func_name  | chunk_target_size 
+---------------+--------------------------+--------------------------+-------------------
+ test_adaptive | _timescaledb_internal    | calculate_chunk_interval |                 0
+(1 row)
+
+-- Setting 0 size should estimate size
+SELECT * FROM set_adaptive_chunk_sizing('test_adaptive', '0MB');
+               chunk_sizing_func                | chunk_target_size 
+------------------------------------------------+-------------------
+ _timescaledb_internal.calculate_chunk_interval |        2147483648
+(1 row)
+
+SELECT table_name, chunk_sizing_func_schema, chunk_sizing_func_name, chunk_target_size
+FROM _timescaledb_catalog.hypertable;
+  table_name   | chunk_sizing_func_schema |  chunk_sizing_func_name  | chunk_target_size 
+---------------+--------------------------+--------------------------+-------------------
+ test_adaptive | _timescaledb_internal    | calculate_chunk_interval |        2147483648
+(1 row)
+
+SELECT * FROM set_adaptive_chunk_sizing('test_adaptive', '1MB');
+               chunk_sizing_func                | chunk_target_size 
+------------------------------------------------+-------------------
+ _timescaledb_internal.calculate_chunk_interval |           1048576
+(1 row)
+
+-- Setting size to 'estimate' should also estimate size
+SELECT * FROM set_adaptive_chunk_sizing('test_adaptive', 'estimate');
+               chunk_sizing_func                | chunk_target_size 
+------------------------------------------------+-------------------
+ _timescaledb_internal.calculate_chunk_interval |        2147483648
+(1 row)
+
+SELECT table_name, chunk_sizing_func_schema, chunk_sizing_func_name, chunk_target_size
+FROM _timescaledb_catalog.hypertable;
+  table_name   | chunk_sizing_func_schema |  chunk_sizing_func_name  | chunk_target_size 
+---------------+--------------------------+--------------------------+-------------------
+ test_adaptive | _timescaledb_internal    | calculate_chunk_interval |        2147483648
+(1 row)
+
+-- Set a reasonable test value
+SELECT * FROM set_adaptive_chunk_sizing('test_adaptive', '1MB');
+               chunk_sizing_func                | chunk_target_size 
+------------------------------------------------+-------------------
+ _timescaledb_internal.calculate_chunk_interval |           1048576
+(1 row)
+
+INSERT INTO test_adaptive
+SELECT time, random() * 35 FROM
+generate_series('2017-03-07T18:18:03+00'::timestamptz - interval '175 days',
+                '2017-03-07T18:18:03+00'::timestamptz,
+                '5 minutes') as time;
+SELECT * FROM chunk_relation_size('test_adaptive');
+ chunk_id |                chunk_table                 | partitioning_columns |  partitioning_column_types   | partitioning_hash_functions |                 ranges                  | table_bytes | index_bytes | toast_bytes | total_bytes 
+----------+--------------------------------------------+----------------------+------------------------------+-----------------------------+-----------------------------------------+-------------+-------------+-------------+-------------
+        1 | "_timescaledb_internal"."_hyper_3_1_chunk" | {time}               | {"timestamp with time zone"} | {NULL}                      | {"[1473724800000000,1473811200000000)"} |        8192 |       16384 |             |       24576
+        2 | "_timescaledb_internal"."_hyper_3_2_chunk" | {time}               | {"timestamp with time zone"} | {NULL}                      | {"[1473811200000000,1473897600000000)"} |       40960 |       16384 |             |       57344
+        3 | "_timescaledb_internal"."_hyper_3_3_chunk" | {time}               | {"timestamp with time zone"} | {NULL}                      | {"[1473897600000000,1475233434419104)"} |      229376 |      188416 |             |      417792
+        4 | "_timescaledb_internal"."_hyper_3_4_chunk" | {time}               | {"timestamp with time zone"} | {NULL}                      | {"[1475233434419104,1476807856440896)"} |      262144 |      221184 |             |      483328
+        5 | "_timescaledb_internal"."_hyper_3_5_chunk" | {time}               | {"timestamp with time zone"} | {NULL}                      | {"[1476807856440896,1478693155707945)"} |      303104 |      262144 |             |      565248
+        6 | "_timescaledb_internal"."_hyper_3_6_chunk" | {time}               | {"timestamp with time zone"} | {NULL}                      | {"[1478693155707945,1482108151448610)"} |      532480 |      450560 |             |      983040
+        7 | "_timescaledb_internal"."_hyper_3_7_chunk" | {time}               | {"timestamp with time zone"} | {NULL}                      | {"[1482108151448610,1485523147189275)"} |      532480 |      450560 |             |      983040
+        8 | "_timescaledb_internal"."_hyper_3_8_chunk" | {time}               | {"timestamp with time zone"} | {NULL}                      | {"[1485523147189275,1488938142929940)"} |      532480 |      450560 |             |      983040
+(8 rows)
+

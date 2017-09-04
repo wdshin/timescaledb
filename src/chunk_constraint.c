@@ -38,9 +38,9 @@ chunk_constraint_for_dimension_slice(TupleInfo *ti, void *data)
 static bool
 chunk_constraint_tuple_found(TupleInfo *ti, void *data)
 {
-	Chunk	   *chunk = data;
+	ChunkConstraint *constraints = data;
 
-	chunk_constraint_fill(&chunk->constraints[chunk->num_constraints++], ti->tuple);
+	chunk_constraint_fill(&constraints[ti->count - 1], ti->tuple);
 
 	return true;
 }
@@ -63,23 +63,24 @@ chunk_constraint_scan_by_chunk_id(Chunk *chunk)
 		.scantype = ScannerTypeIndex,
 		.nkeys = 1,
 		.scankey = scankey,
-		.limit = chunk->num_constraints,
-		.data = chunk,
+		.limit = chunk->capacity,
+		.data = chunk->constraints,
 		.filter = chunk_constraint_for_dimension_slice,
 		.tuple_found = chunk_constraint_tuple_found,
 		.lockmode = AccessShareLock,
 		.scandirection = ForwardScanDirection,
 	};
 
-	chunk->num_constraints = 0;
-
 	ScanKeyInit(&scankey[0], Anum_chunk_constraint_chunk_id_dimension_slice_id_idx_chunk_id,
 				BTEqualStrategyNumber, F_INT4EQ, Int32GetDatum(chunk->fd.id));
 
 	num_found = scanner_scan(&scanCtx);
 
-	if (num_found != chunk->num_constraints)
-		elog(ERROR, "Unexpected number of constraints found for chunk %d", chunk->fd.id);
+	if (num_found != chunk->capacity)
+		elog(ERROR, "Found %d constraints for chunk %d, but expected %d",
+			 num_found, chunk->fd.id, chunk->num_constraints);
+
+	chunk->num_constraints = num_found;
 
 	return chunk;
 }
@@ -141,7 +142,7 @@ chunk_constraint_scan_by_dimension_slice_id(DimensionSlice *slice, ChunkScanCtx 
 		.scanctx = ctx,
 		.slice = slice,
 	};
-	ScannerCtx	scanCtx = {
+	ScannerCtx	scanctx = {
 		.table = catalog->tables[CHUNK_CONSTRAINT].id,
 		.index = catalog->tables[CHUNK_CONSTRAINT].index_ids[CHUNK_CONSTRAINT_CHUNK_ID_DIMENSION_SLICE_ID_IDX],
 		.scantype = ScannerTypeIndex,
@@ -157,7 +158,7 @@ chunk_constraint_scan_by_dimension_slice_id(DimensionSlice *slice, ChunkScanCtx 
 	ScanKeyInit(&scankey[0], Anum_chunk_constraint_chunk_id_dimension_slice_id_idx_dimension_slice_id,
 				BTEqualStrategyNumber, F_INT4EQ, Int32GetDatum(slice->fd.id));
 
-	num_found = scanner_scan(&scanCtx);
+	num_found = scanner_scan(&scanctx);
 
 	return num_found;
 }

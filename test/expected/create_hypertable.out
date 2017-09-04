@@ -76,9 +76,9 @@ select add_dimension('test_schema.test_table', 'location', 2);
 (1 row)
 
 select * from _timescaledb_catalog.hypertable where table_name = 'test_table';
- id | schema_name | table_name | associated_schema_name | associated_table_prefix | num_dimensions 
-----+-------------+------------+------------------------+-------------------------+----------------
-  2 | test_schema | test_table | _timescaledb_internal  | _hyper_2                |              3
+ id | schema_name | table_name | associated_schema_name | associated_table_prefix | num_dimensions | chunk_sizing_func_schema | chunk_sizing_func_name | chunk_target_size 
+----+-------------+------------+------------------------+-------------------------+----------------+--------------------------+------------------------+-------------------
+  2 | test_schema | test_table | _timescaledb_internal  | _hyper_2                |              3 |                          |                        |                 0
 (1 row)
 
 select * from _timescaledb_catalog.dimension;
@@ -105,9 +105,9 @@ NOTICE:  Adding NOT NULL constraint to time column id (NULL time values not allo
 (1 row)
 
 select * from _timescaledb_catalog.hypertable where table_name = 'test_table';
- id | schema_name | table_name | associated_schema_name | associated_table_prefix | num_dimensions 
-----+-------------+------------+------------------------+-------------------------+----------------
-  2 | test_schema | test_table | _timescaledb_internal  | _hyper_2                |              4
+ id | schema_name | table_name | associated_schema_name | associated_table_prefix | num_dimensions | chunk_sizing_func_schema | chunk_sizing_func_name | chunk_target_size 
+----+-------------+------------+------------------------+-------------------------+----------------+--------------------------+------------------------+-------------------
+  2 | test_schema | test_table | _timescaledb_internal  | _hyper_2                |              4 |                          |                        |                 0
 (1 row)
 
 select * from _timescaledb_catalog.dimension;

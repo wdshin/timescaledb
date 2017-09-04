@@ -408,11 +408,18 @@ catalog_insert_values(Relation rel, TupleDesc tupdesc, Datum *values, bool *null
 }
 
 void
-catalog_update(Relation rel, HeapTuple tuple)
+catalog_update_tid(Relation rel, ItemPointer otid, HeapTuple tuple)
 {
-	CatalogTupleUpdate(rel, &tuple->t_self, tuple);
+	CatalogTupleUpdate(rel, otid, tuple);
+
 	/* Make changes visible */
 	CommandCounterIncrement();
+}
+
+void
+catalog_update(Relation rel, HeapTuple tuple)
+{
+	catalog_update_tid(rel, &tuple->t_self, tuple);
 }
 
 void

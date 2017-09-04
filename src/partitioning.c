@@ -30,7 +30,7 @@ partitioning_func_set_func_fmgr(PartitioningFunc *pf)
 {
 	FuncCandidateList funclist =
 	FuncnameGetCandidates(partitioning_func_qualified_name(pf),
-						  1, NULL, false, false, false);
+						  1, NIL, false, false, false);
 
 	while (funclist != NULL &&
 		   (funclist->nargs != 1 || funclist->args[0] != ANYELEMENTOID))

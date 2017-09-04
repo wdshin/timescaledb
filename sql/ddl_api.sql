@@ -22,7 +22,9 @@ CREATE OR REPLACE FUNCTION  create_hypertable(
     chunk_time_interval     anyelement = NULL::bigint,
     create_default_indexes  BOOLEAN = TRUE,
     if_not_exists           BOOLEAN = FALSE,
-    partitioning_func       REGPROC = NULL
+    partitioning_func       REGPROC = NULL,
+    chunk_target_size       TEXT = NULL,
+    chunk_sizing_func       REGPROC = '_timescaledb_internal.calculate_chunk_interval'::regproc
 )
     RETURNS VOID LANGUAGE PLPGSQL VOLATILE
     SECURITY DEFINER SET search_path = ''
@@ -40,6 +42,7 @@ DECLARE
     is_hypertable              BOOLEAN;
     chunk_time_interval_actual BIGINT;
     time_type                  REGTYPE;
+    chunk_target_size_bytes    BIGINT = NULL;
 BEGIN
     SELECT relname, nspname, reltablespace
     INTO STRICT table_name, schema_name, tablespace_oid
@@ -97,6 +100,22 @@ BEGIN
     chunk_time_interval_actual := _timescaledb_internal.time_interval_specification_to_internal(
         time_type, chunk_time_interval, INTERVAL '1 month', 'chunk_time_interval');
 
+    IF chunk_target_size IS NOT NULL THEN
+        chunk_target_size_bytes = _timescaledb_internal.convert_text_memory_amount_to_bytes(chunk_target_size);
+    END IF;
+
+    IF chunk_time_interval IS NULL AND time_type IN ('TIMESTAMP', 'TIMESTAMPTZ', 'DATE') THEN
+        -- If user requested adaptive chunk sizing, default to a short
+        -- 1 day chunk time interval. Integral types need to have
+        -- chunk_time_interval explicitly set.
+        IF chunk_sizing_func IS NOT NULL AND
+            chunk_sizing_func <> 0 AND
+            chunk_target_size_bytes IS NOT NULL AND
+            chunk_target_size_bytes > 0 THEN
+            chunk_time_interval_actual := _timescaledb_internal.interval_to_usec('1 day');
+        END IF;
+    END IF;
+
     BEGIN
         SELECT *
         INTO hypertable_row
@@ -111,7 +130,9 @@ BEGIN
             associated_table_prefix,
             chunk_time_interval_actual,
             tablespace_name,
-            partitioning_func
+            partitioning_func,
+            chunk_sizing_func,
+            chunk_target_size_bytes
         );
     EXCEPTION
         WHEN unique_violation THEN
@@ -132,6 +153,15 @@ BEGIN
     END IF;
 END
 $BODY$;
+
+CREATE OR REPLACE FUNCTION  set_adaptive_chunk_sizing(
+    hypertable                     REGCLASS,
+    chunk_target_size              TEXT,
+    INOUT chunk_sizing_func        REGPROC = NULL,
+    OUT chunk_target_size          BIGINT
+)
+    AS '$libdir/timescaledb', 'chunk_adaptive_set_chunk_sizing'
+    LANGUAGE C IMMUTABLE;
 
 CREATE OR REPLACE FUNCTION  add_dimension(
     main_table              REGCLASS,

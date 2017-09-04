@@ -11,6 +11,8 @@ CREATE OR REPLACE FUNCTION _timescaledb_internal.to_timestamp(unixtime_us BIGINT
 CREATE OR REPLACE FUNCTION _timescaledb_internal.to_timestamp_pg(postgres_us BIGINT) RETURNS TIMESTAMPTZ
     AS '$libdir/timescaledb', 'pg_microseconds_to_timestamp' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
+CREATE OR REPLACE FUNCTION _timescaledb_internal.to_internal_time(timeval ANYELEMENT) RETURNS BIGINT
+    AS '$libdir/timescaledb', 'to_internal_time' LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 -- Time can be represented in a hypertable as an int* (bigint/integer/smallint) or as a timestamp type (
 -- with or without timezones). In or metatables and other internal systems all time values are stored as bigint.

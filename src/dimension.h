@@ -68,6 +68,7 @@ extern Point *hyperspace_calculate_point(Hyperspace *h, HeapTuple tuple, TupleDe
 extern Dimension *hyperspace_get_dimension_by_id(Hyperspace *hs, int32 id);
 extern Dimension *hyperspace_get_dimension(Hyperspace *hs, DimensionType type, Index n);
 extern Dimension *hyperspace_get_dimension_by_name(Hyperspace *hs, DimensionType type, const char *name);
+extern bool dimension_update(Dimension *dim);
 
 #define hyperspace_get_open_dimension(space, i)				\
 	hyperspace_get_dimension(space, DIMENSION_TYPE_OPEN, i)

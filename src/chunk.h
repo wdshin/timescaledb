@@ -12,6 +12,7 @@
 
 typedef struct Hypercube Hypercube;
 typedef struct Point Point;
+typedef struct Hypertable Hypertable;
 typedef struct Hyperspace Hyperspace;
 typedef struct Hypertable Hypertable;
 
@@ -29,12 +30,12 @@ typedef struct Chunk
 	Oid			table_id;
 
 	/*
-	 * The hypercube defines the chunks position in the N-dimensional space.
+	 * The hypercube defines the chunk's position in the N-dimensional space.
 	 * Each of the N slices in the cube corresponds to a constraint on the
 	 * chunk table.
 	 */
 	Hypercube  *cube;
-	int16		capacity;
+	int16       capacity;
 	int16		num_constraints;
 	ChunkConstraint constraints[FLEXIBLE_ARRAY_MEMBER];
 } Chunk;
@@ -65,7 +66,6 @@ typedef struct ChunkScanEntry
 	Chunk	   *chunk;
 } ChunkScanEntry;
 
-extern Chunk *chunk_create_from_tuple(HeapTuple tuple, int16 num_constraints);
 extern Chunk *chunk_create(Hypertable *ht, Point *p, const char *schema, const char *prefix);
 extern Chunk *chunk_create_stub(int32 id, int16 num_constraints);
 extern void chunk_free(Chunk *chunk);

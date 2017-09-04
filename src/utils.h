@@ -1,8 +1,9 @@
 #ifndef TIMESCALEDB_UTILS_H
 #define TIMESCALEDB_UTILS_H
 
-#include "fmgr.h"
-#include "nodes/primnodes.h"
+#include <fmgr.h>
+#include <nodes/primnodes.h>
+#include <catalog/pg_proc.h>
 
 extern PGDLLEXPORT Datum pg_timestamp_to_microseconds(PG_FUNCTION_ARGS);
 extern PGDLLEXPORT Datum pg_microseconds_to_timestamp(PG_FUNCTION_ARGS);
@@ -40,5 +41,7 @@ extern int	int_cmp(const void *a, const void *b);
 
 #define DATUM_GET(values, attno) \
 	values[attno-1]
+
+extern Form_pg_proc get_procform(regproc func);
 
 #endif   /* TIMESCALEDB_UTILS_H */

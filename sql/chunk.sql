@@ -12,6 +12,13 @@ CREATE OR REPLACE FUNCTION _timescaledb_internal.dimension_calculate_default_ran
     OUT range_end         BIGINT)
     AS '$libdir/timescaledb', 'dimension_calculate_closed_range_default' LANGUAGE C STABLE;
 
+CREATE OR REPLACE FUNCTION _timescaledb_internal.validate_chunk_sizing_func(
+        chunk_sizing_func REGPROC) RETURNS VOID
+    AS '$libdir/timescaledb', 'chunk_adaptive_validate_chunk_sizing_func' LANGUAGE C STABLE;
+
+CREATE OR REPLACE FUNCTION _timescaledb_internal.calculate_initial_chunk_target_size() RETURNS BIGINT
+    AS '$libdir/timescaledb', 'chunk_adaptive_calculate_initial_chunk_target_size' LANGUAGE C STABLE;
+
 CREATE OR REPLACE FUNCTION _timescaledb_internal.drop_chunk_metadata(
     chunk_id int
 )

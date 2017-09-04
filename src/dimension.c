@@ -362,3 +362,68 @@ hyperspace_calculate_point(Hyperspace *hs, HeapTuple tuple, TupleDesc tupdesc)
 
 	return p;
 }
+
+static int
+dimension_scan_by_id(int32 dimension_id, tuple_found_func found_func, void *data, LOCKMODE lockmode)
+{
+	Catalog    *catalog = catalog_get();
+	ScanKeyData scankey[1];
+	ScannerCtx	scanCtx = {
+		.table = catalog->tables[DIMENSION].id,
+		.index = catalog->tables[DIMENSION].index_ids[DIMENSION_ID_IDX],
+		.scantype = ScannerTypeIndex,
+		.nkeys = 1,
+		.limit = 1,
+		.scankey = scankey,
+		.tuple_found = found_func,
+		.data = data,
+		.lockmode = lockmode,
+		.scandirection = ForwardScanDirection,
+	};
+
+	/* Perform an index scan on dimension ID. */
+	ScanKeyInit(&scankey[0], Anum_dimension_id_idx_dimension_id,
+				BTEqualStrategyNumber, F_INT4EQ, Int32GetDatum(dimension_id));
+
+	return scanner_scan(&scanCtx);
+}
+
+static bool
+dimension_tuple_update(TupleInfo *ti, void *data)
+{
+	Dimension  *dim = data;
+	Datum		values[Natts_dimension];
+	bool		nulls[Natts_dimension];
+	HeapTuple	copy;
+
+	heap_deform_tuple(ti->tuple, ti->desc, values, nulls);
+
+	values[Anum_dimension_column_name - 1] = NameGetDatum(&dim->fd.column_name);
+	values[Anum_dimension_column_type - 1] = dim->fd.column_type;
+
+	if (!nulls[Anum_dimension_num_slices - 1])
+		values[Anum_dimension_num_slices - 1] = dim->fd.num_slices;
+
+	if (!nulls[Anum_dimension_interval_length - 1])
+		values[Anum_dimension_interval_length - 1] = dim->fd.interval_length;
+
+	if (!nulls[Anum_dimension_partitioning_func_schema - 1])
+		values[Anum_dimension_partitioning_func_schema - 1] = NameGetDatum(&dim->fd.partitioning_func_schema);
+
+	if (!nulls[Anum_dimension_partitioning_func - 1])
+		values[Anum_dimension_partitioning_func - 1] = NameGetDatum(&dim->fd.partitioning_func);
+
+	copy = heap_form_tuple(ti->desc, values, nulls);
+
+	catalog_update_tid(ti->scanrel, &ti->tuple->t_self, copy);
+
+	heap_freetuple(copy);
+
+	return true;
+}
+
+bool
+dimension_update(Dimension *dim)
+{
+	return dimension_scan_by_id(dim->fd.id, dimension_tuple_update, dim, RowExclusiveLock) > 0;
+}

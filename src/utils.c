@@ -1,14 +1,18 @@
 #include <postgres.h>
 #include <fmgr.h>
-#include <utils/datetime.h>
 #include <catalog/pg_type.h>
 #include <catalog/pg_trigger.h>
 #include <catalog/namespace.h>
-#include <utils/guc.h>
-#include <utils/date.h>
 #include <nodes/nodes.h>
 #include <nodes/makefuncs.h>
+#include <access/htup_details.h>
+#include <utils/datetime.h>
+#include <utils/guc.h>
+#include <utils/date.h>
+#include <utils/syscache.h>
 #include <utils/lsyscache.h>
+#include <utils/builtins.h>
+#include <unistd.h>
 
 #include "utils.h"
 #include "compat.h"
@@ -140,46 +144,36 @@ pg_unix_microseconds_to_timestamp(PG_FUNCTION_ARGS)
 	PG_RETURN_TIMESTAMPTZ(timestamp);
 }
 
-
-/*	*/
 int64
 time_value_to_internal(Datum time_val, Oid type)
 {
-	if (type == INT8OID)
+	switch (type)
 	{
-		return DatumGetInt64(time_val);
+		case INT8OID:
+			return DatumGetInt64(time_val);
+		case INT4OID:
+			return DatumGetInt32(time_val);
+		case INT2OID:
+			return DatumGetInt16(time_val);
+		case DATEOID:
+			time_val = DirectFunctionCall1(date_timestamp, time_val);
+			return DatumGetInt64(DirectFunctionCall1(pg_timestamp_to_unix_microseconds, time_val));
+		case TIMESTAMPOID:
+			time_val = DirectFunctionCall1(timestamp_timestamptz, time_val);
+			/* Fall through */
+		case TIMESTAMPTZOID:
+			return DatumGetInt64(DirectFunctionCall1(pg_timestamp_to_unix_microseconds, time_val));
+		default:
+			elog(ERROR, "unkown time type oid '%d'", type);
 	}
-	if (type == INT4OID)
-	{
-		return (int64) DatumGetInt32(time_val);
-	}
-	if (type == INT2OID)
-	{
-		return (int64) DatumGetInt16(time_val);
-	}
-	if (type == TIMESTAMPOID)
-	{
-		Datum		tz = DirectFunctionCall1(timestamp_timestamptz, time_val);
-		Datum		res = DirectFunctionCall1(pg_timestamp_to_unix_microseconds, tz);
+}
 
-		return DatumGetInt64(res);
-	}
-	if (type == TIMESTAMPTZOID)
-	{
-		Datum		res = DirectFunctionCall1(pg_timestamp_to_unix_microseconds, time_val);
+PG_FUNCTION_INFO_V1(to_internal_time);
 
-		return DatumGetInt64(res);
-	}
-	if (type == DATEOID)
-	{
-		Datum		tz = DirectFunctionCall1(date_timestamp, time_val);
-		Datum		res = DirectFunctionCall1(pg_timestamp_to_unix_microseconds, tz);
-
-		return DatumGetInt64(res);
-	}
-
-	elog(ERROR, "unkown time type oid '%d'", type);
-	return -1;
+Datum
+to_internal_time(PG_FUNCTION_ARGS)
+{
+	return time_value_to_internal(PG_GETARG_DATUM(0), get_fn_expr_argtype(fcinfo->flinfo, 0));
 }
 
 /* Make a RangeVar from a regclass Oid */
@@ -359,4 +353,30 @@ date_bucket(PG_FUNCTION_ARGS)
 	converted_ts = DirectFunctionCall1(date_timestamp, PG_GETARG_DATUM(1));
 	bucketed = DirectFunctionCall2(timestamp_bucket, PG_GETARG_DATUM(0), converted_ts);
 	return DirectFunctionCall1(timestamp_date, bucketed);
+}
+
+PG_FUNCTION_INFO_V1(trigger_is_row_trigger);
+
+Datum
+trigger_is_row_trigger(PG_FUNCTION_ARGS)
+{
+	int16		tgtype = PG_GETARG_INT16(0);
+
+	PG_RETURN_BOOL(TRIGGER_FOR_ROW(tgtype));
+}
+
+Form_pg_proc
+get_procform(regproc func)
+{
+	HeapTuple	proctup, copy;
+
+	proctup = SearchSysCache1(PROCOID, ObjectIdGetDatum(func));
+
+	if (!HeapTupleIsValid(proctup))
+		elog(ERROR, "cache lookup failed for function %u", func);
+
+	copy = heap_copytuple(proctup);
+	ReleaseSysCache(proctup);
+
+	return (Form_pg_proc) GETSTRUCT(copy);
 }
