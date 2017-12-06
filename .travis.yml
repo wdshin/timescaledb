@@ -38,7 +38,7 @@ jobs:
         - echo -n | openssl s_client -connect scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca-
         - sudo apt-get install -y postgresql-9.6 postgresql-client-9.6 postgresql-contrib-9.6 postgresql-server-dev-9.6 cmake3
       install: echo "Success"
-      script: echo "Success"
+      script: cat /home/travis/build/timescale/timescaledb/build/cov-int/scm_log.txt
       addons:
         postgresql: "9.6"
         coverity_scan:
